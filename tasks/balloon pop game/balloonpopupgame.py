@@ -12,8 +12,13 @@ mp_drawing = mp.solutions.drawing_utils
 # Game settings
 balloon_radius = 40
 score = 0
-game_duration = 60  # Game time in seconds
+game_duration = 120  # Game time in seconds (120 seconds)
 start_time = time.time()
+
+# Speed settings
+initial_balloon_speed = 3
+speed_increase_interval = 15  # Increase speed every 15 seconds
+max_speed = 10  # Maximum speed of balloons
 
 # Initialize webcam
 cap = cv2.VideoCapture(0)
@@ -35,8 +40,9 @@ def is_pinch(landmarks):
 balloons = [{'x': random.randint(balloon_radius, screen_res[0] - balloon_radius), 
              'y': screen_res[1], 
              'color': (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)),
-             'speed': random.randint(3, 7)}]
+             'speed': initial_balloon_speed}]
 
+# Game loop
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -51,6 +57,18 @@ while True:
     game_frame = np.zeros((screen_res[1], screen_res[0], 3), dtype=np.uint8)
     game_frame[:] = (255, 0, 0)  # Blue background
 
+    # Calculate elapsed time
+    elapsed_time = time.time() - start_time
+
+    # Update timer
+    remaining_time = max(0, game_duration - int(elapsed_time))
+
+    # Increase speed every 15 seconds, up to a maximum speed
+    if elapsed_time // speed_increase_interval > (elapsed_time - 1) // speed_increase_interval:
+        new_speed = min(initial_balloon_speed + int(elapsed_time // speed_increase_interval), max_speed)
+        for balloon in balloons:
+            balloon['speed'] = new_speed
+
     # Move balloons up
     for balloon in balloons:
         balloon['y'] -= balloon['speed']
@@ -58,7 +76,7 @@ while True:
             balloon['y'] = screen_res[1]
             balloon['x'] = random.randint(balloon_radius, screen_res[0] - balloon_radius)
             balloon['color'] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            balloon['speed'] = random.randint(3, 7)
+            balloon['speed'] = random.randint(initial_balloon_speed, max_speed)
 
     # Draw realistic balloons on the game window
     for balloon in balloons:
@@ -88,20 +106,22 @@ while True:
                         balloons.append({'x': random.randint(balloon_radius, screen_res[0] - balloon_radius),
                                          'y': screen_res[1],
                                          'color': (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)),
-                                         'speed': random.randint(3, 7)})
+                                         'speed': initial_balloon_speed})
 
-    # Display score
+    # Display timer and score
+    cv2.putText(game_frame, f"Time: {remaining_time}s", (screen_res[0] - 150, 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     cv2.putText(game_frame, f"Score: {score}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     # Check game time
-    if time.time() - start_time > game_duration:
+    if elapsed_time > game_duration:
         cv2.putText(game_frame, f"Game Over! Final Score: {score}", (screen_res[0] // 4, screen_res[1] // 2),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         cv2.imshow("Balloon Popping Game", game_frame)
         cv2.waitKey(3000)
         break
 
-    # Show only one window (game window now includes hand tracking)
+    # Show the game window
     cv2.imshow("Balloon Popping Game", game_frame)
 
     # Exit on 'q' key
