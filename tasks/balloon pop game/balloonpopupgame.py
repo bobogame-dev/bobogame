@@ -23,13 +23,20 @@ screen_res = (1280, 720)
 
 # Load background image
 bg_image = cv2.imread("./bgimage.jpg")
+if bg_image is None:
+    print("Error: Background image not found.")
+    exit()
+
 bg_image = cv2.resize(bg_image, screen_res)  # Resize to screen resolution
 
 # Load balloon image with transparency (PNG format)
 balloon_img = cv2.imread("./balloon.png", cv2.IMREAD_UNCHANGED)
+if balloon_img is None:
+    print("Error: Balloon image not found.")
+    exit()
 
 # Resize balloon image to fit the game
-balloon_img = cv2.resize(balloon_img, (80, 120))
+balloon_img = cv2.resize(balloon_img, (175, 175))
 
 # Function to detect pinch gesture
 def is_pinch(landmarks):
