@@ -6,115 +6,107 @@ import time
 
 # Set up MediaPipe Hands
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands()
+hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_drawing = mp.solutions.drawing_utils
 
 # Game settings
 balloon_radius = 40
 score = 0
 game_duration = 60  # Game time in seconds
-start_time = time.time()  # Record the start time
+start_time = time.time()
 
-# Initialize the webcam
+# Initialize webcam
 cap = cv2.VideoCapture(0)
 
-# Get the screen resolution (optional to set your screen size)
-screen_res = (640, 480)  # Use default webcam resolution (you can change this)
+# Screen resolution for game window
+screen_res = (1280, 720)
 
 # Function to detect pinch gesture
 def is_pinch(landmarks):
-    # Checking distance between index tip (8) and thumb tip (4)
-    index_finger = landmarks[8]
-    thumb = landmarks[4]
+    index_finger = landmarks[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+    thumb = landmarks[mp_hands.HandLandmark.THUMB_TIP]
+
+    # Calculate Euclidean distance
     distance = ((index_finger.x - thumb.x) ** 2 + (index_finger.y - thumb.y) ** 2) ** 0.5
-    return distance < 0.05  # Threshold for pinch gesture detection
 
-# Function to draw a more realistic balloon
-def draw_balloon(x, y, color):
-    # Create an elliptical balloon shape (a simple gradient fill effect to mimic shine)
-    overlay = frame.copy()
-    cv2.ellipse(overlay, (x, y), (balloon_radius, int(balloon_radius * 1.3)), 0, 0, 360, color, -1)  # Elliptical shape
-    # Add a shine effect with a lighter color on top
-    shine_color = (min(color[0] + 50, 255), min(color[1] + 50, 255), min(color[2] + 50, 255))
-    cv2.ellipse(overlay, (x - 10, y - 20), (balloon_radius // 2, balloon_radius // 2), 0, 0, 360, shine_color, -1)
-    alpha = 0.7  # Transparency of the overlay
-    cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
+    return distance < 0.08  # Adjust threshold if needed
 
-# Function to show score
-def show_score(score):
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(frame, f"Score: {score}", (10, 30), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
-
-# Balloons list and game loop
+# Balloons list
 balloons = [{'x': random.randint(balloon_radius, screen_res[0] - balloon_radius), 
              'y': screen_res[1], 
              'color': (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)),
-             'speed': random.randint(3, 7)}]  # Random speed for each balloon
+             'speed': random.randint(3, 7)}]
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
-    # Flip the frame horizontally
+    # Flip frame horizontally for natural hand movement
     frame = cv2.flip(frame, 1)
-
-    # Convert the frame to RGB for MediaPipe
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(rgb_frame)
 
-    # Move balloons up with varying speeds
+    # Create a blue background for the game window
+    game_frame = np.zeros((screen_res[1], screen_res[0], 3), dtype=np.uint8)
+    game_frame[:] = (255, 0, 0)  # Blue background
+
+    # Move balloons up
     for balloon in balloons:
-        balloon['y'] -= balloon['speed']  # Move the balloon at its assigned speed
-        balloon['x'] += random.randint(-2, 2)  # Slight horizontal movement for randomness
-        if balloon['y'] < 0:  # If balloon goes out of screen, regenerate it at the bottom
+        balloon['y'] -= balloon['speed']
+        if balloon['y'] < 0:
             balloon['y'] = screen_res[1]
             balloon['x'] = random.randint(balloon_radius, screen_res[0] - balloon_radius)
             balloon['color'] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            balloon['speed'] = random.randint(3, 7)  # Assign a new random speed to the balloon
+            balloon['speed'] = random.randint(3, 7)
 
-    # Draw the balloons
+    # Draw realistic balloons on the game window
     for balloon in balloons:
-        draw_balloon(balloon['x'], balloon['y'], balloon['color'])
+        center = (balloon['x'], balloon['y'])
+        axes = (balloon_radius, int(balloon_radius * 1.5))  # Oval shape
+        cv2.ellipse(game_frame, center, axes, 0, 0, 360, balloon['color'], -1)
 
-    # Check if a pinch gesture is detected and pop balloons
+        # Balloon string (knot)
+        cv2.line(game_frame, (balloon['x'], balloon['y'] + int(balloon_radius * 1.5)), 
+                 (balloon['x'], balloon['y'] + int(balloon_radius * 1.8)), (0, 0, 0), 2)
+
+    # Hand tracking
     if results.multi_hand_landmarks:
-        for landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+        for hand_landmarks in results.multi_hand_landmarks:
+            # Draw hand landmarks
+            mp_drawing.draw_landmarks(game_frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            if is_pinch(landmarks.landmark):
+            # Convert hand tracking coordinates to game coordinates
+            index_x = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * screen_res[0])
+            index_y = int(hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * screen_res[1])
+
+            if is_pinch(hand_landmarks.landmark):
                 for balloon in balloons:
-                    # Pop the balloon if it's within a certain area around the fingers
-                    if abs(balloon['x'] - landmarks.landmark[8].x * screen_res[0]) < balloon_radius and \
-                       abs(balloon['y'] - landmarks.landmark[8].y * screen_res[1]) < balloon_radius:
+                    if abs(balloon['x'] - index_x) < balloon_radius and abs(balloon['y'] - index_y) < balloon_radius:
                         score += 1
                         balloons.remove(balloon)
                         balloons.append({'x': random.randint(balloon_radius, screen_res[0] - balloon_radius),
                                          'y': screen_res[1],
                                          'color': (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)),
-                                         'speed': random.randint(3, 7)})  # New balloon with random speed
-    
-    # Show the current score
-    show_score(score)
+                                         'speed': random.randint(3, 7)})
 
-    # Check if the game time has expired (120 seconds)
-    elapsed_time = time.time() - start_time
-    if elapsed_time > game_duration:
-        # Display final score with a balloon background
-        final_score_text = f"Game Over! Final Score: {score}"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(frame, final_score_text, (screen_res[0] // 4, screen_res[1] // 2), font, 1, (0, 0, 255), 2, cv2.LINE_AA)
-        cv2.imshow("Balloon Popping Game", frame)
-        cv2.waitKey(3000)  # Display the final score for 3 seconds before exiting
-        break  # End the game
+    # Display score
+    cv2.putText(game_frame, f"Score: {score}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    # Display the frame without zoom
-    cv2.imshow("Balloon Popping Game", frame)
+    # Check game time
+    if time.time() - start_time > game_duration:
+        cv2.putText(game_frame, f"Game Over! Final Score: {score}", (screen_res[0] // 4, screen_res[1] // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        cv2.imshow("Balloon Popping Game", game_frame)
+        cv2.waitKey(3000)
+        break
 
-    # Break the loop if the user presses 'q'
+    # Show only one window (game window now includes hand tracking)
+    cv2.imshow("Balloon Popping Game", game_frame)
+
+    # Exit on 'q' key
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Release resources
 cap.release()
 cv2.destroyAllWindows()
