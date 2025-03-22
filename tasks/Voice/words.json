@@ -1,0 +1,5 @@
+{
+    "Easy": ["Sleep","One","Ten","Run","Boy","Bus"],
+    "Medium": ["Flower", "Mango", "Monkey", "People", "Train", "Window"],
+    "Hard": ["Banana", "Vegetable", "Building", "Family", "Picture","Dog"]
+}
