@@ -12,7 +12,7 @@ mp_drawing = mp.solutions.drawing_utils
 # Game settings
 balloon_radius = 40
 score = 0
-game_duration = 120  # Game time in seconds
+game_duration = 60  # Game time in seconds
 start_time = time.time()  # Record the start time
 
 # Initialize the webcam
