@@ -1,0 +1,1 @@
+An interactive gaming application for underage children with Autism Spectrum Disoder to develop their motor, cognitive and communication skills. Built on unity engine. Features hand gesture control and voice control features achieved through mediapipe library and voskAI.
